@@ -28632,28 +28632,55 @@ pub mod snapshots {
                 Box::pin(async move {
                     use azure_core::{
                         error::{Error, ErrorKind},
-                        lro::{body_content::get_provisioning_state, get_retry_after, LroStatus},
+                        lro::{
+                            get_retry_after,
+                            location::{get_location, get_provisioning_state, FinalState},
+                            LroStatus,
+                        },
                         sleep::sleep,
                     };
                     use std::time::Duration;
-                    loop {
-                        let this = self.clone();
-                        let response = this.send().await?;
-                        let retry_after = get_retry_after(response.as_raw_response().headers());
-                        let status = response.as_raw_response().status();
-                        let body = response.into_body().await?;
-                        let provisioning_state = get_provisioning_state(status, &body)?;
-                        log::trace!("current provisioning_state: {provisioning_state:?}");
-                        match provisioning_state {
-                            LroStatus::Succeeded => return Ok(body),
-                            LroStatus::Failed => return Err(Error::message(ErrorKind::Other, "Long running operation failed".to_string())),
-                            LroStatus::Canceled => {
-                                return Err(Error::message(ErrorKind::Other, "Long running operation canceled".to_string()))
-                            }
-                            _ => {
-                                sleep(retry_after).await;
+                    let this = self.clone();
+                    let response = this.send().await?;
+                    let headers = response.as_raw_response().headers();
+                    let location = get_location(headers, FinalState::AzureAsyncOperation)?;
+                    if let Some(url) = location {
+                        loop {
+                            let mut req = azure_core::Request::new(url.clone(), azure_core::Method::Get);
+                            let bearer_token = self.client.bearer_token().await?;
+                            req.insert_header(azure_core::headers::AUTHORIZATION, format!("Bearer {}", bearer_token.secret()));
+                            let response = self.client.send(&mut req).await?;
+                            let headers = response.headers();
+                            let retry_after = get_retry_after(headers);
+                            let bytes = response.into_body().collect().await?;
+                            let provisioning_state = get_provisioning_state(&bytes).ok_or_else(|| {
+                                Error::message(
+                                    ErrorKind::Other,
+                                    "Long running operation failed (missing provisioning state)".to_string(),
+                                )
+                            })?;
+                            log::trace!("current provisioning_state: {provisioning_state:?}");
+                            match provisioning_state {
+                                LroStatus::Succeeded => {
+                                    let mut req = azure_core::Request::new(self.url()?, azure_core::Method::Get);
+                                    let bearer_token = self.client.bearer_token().await?;
+                                    req.insert_header(azure_core::headers::AUTHORIZATION, format!("Bearer {}", bearer_token.secret()));
+                                    let response = self.client.send(&mut req).await?;
+                                    return Response(response).into_body().await;
+                                }
+                                LroStatus::Failed => {
+                                    return Err(Error::message(ErrorKind::Other, "Long running operation failed".to_string()))
+                                }
+                                LroStatus::Canceled => {
+                                    return Err(Error::message(ErrorKind::Other, "Long running operation canceled".to_string()))
+                                }
+                                _ => {
+                                    sleep(retry_after).await;
+                                }
                             }
                         }
+                    } else {
+                        response.into_body().await
                     }
                 })
             }
