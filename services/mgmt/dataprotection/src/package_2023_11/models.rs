@@ -300,7 +300,7 @@ pub struct AzureBackupJob {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<String>,
     #[doc = "EndTime of the job(in UTC)"]
-    #[serde(rename = "endTime", default, with = "azure_core::date::rfc3339::option")]
+    #[serde(rename = "endTime", default, with = "azure_core::date::rfc3339_option_hack")]
     pub end_time: Option<time::OffsetDateTime>,
     #[doc = "A List, detailing the errors related to the job"]
     #[serde(

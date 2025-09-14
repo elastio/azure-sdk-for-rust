@@ -750,10 +750,10 @@ pub struct AzureIaaSvmJobTaskDetails {
     #[serde(rename = "taskId", default, skip_serializing_if = "Option::is_none")]
     pub task_id: Option<String>,
     #[doc = "The start time."]
-    #[serde(rename = "startTime", default, with = "azure_core::date::rfc3339::option")]
+    #[serde(rename = "startTime", default, with = "azure_core::date::rfc3339_option_hack")]
     pub start_time: Option<time::OffsetDateTime>,
     #[doc = "The end time."]
-    #[serde(rename = "endTime", default, with = "azure_core::date::rfc3339::option")]
+    #[serde(rename = "endTime", default, with = "azure_core::date::rfc3339_option_hack")]
     pub end_time: Option<time::OffsetDateTime>,
     #[doc = "The instanceId."]
     #[serde(rename = "instanceId", default, skip_serializing_if = "Option::is_none")]
