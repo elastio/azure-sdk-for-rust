@@ -134,6 +134,28 @@ pub fn diff(first: OffsetDateTime, second: OffsetDateTime) -> Duration {
     (first - second).unsigned_abs()
 }
 
+/// Some management APIs return invalid RFC 3339 timestamps in format "0001-01-01T00:00:00" instead of
+/// returning `None` for optional timestamps. This serde module deserializes such invalid timestamps as `None`.
+pub mod rfc3339_option_hack {
+    use serde::Serializer;
+    use time::OffsetDateTime;
+
+    #[inline]
+    pub fn serialize<S: Serializer>(
+        option: &Option<OffsetDateTime>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        time::serde::rfc3339::option::serialize(option, serializer)
+    }
+
+    #[inline]
+    pub fn deserialize<'a, D: serde::Deserializer<'a>>(
+        deserializer: D,
+    ) -> Result<Option<OffsetDateTime>, D::Error> {
+        Ok(time::serde::rfc3339::option::deserialize(deserializer).ok().flatten())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,6 +171,12 @@ mod tests {
         // Note: Must specify "default" in serde options when using "with"
         #[serde(default, with = "crate::date::rfc3339::option")]
         deleted_time: Option<time::OffsetDateTime>,
+    }
+
+    #[derive(Deserialize)]
+    struct ExampleOptionalDateTime {
+        #[serde(with = "crate::date::rfc3339_option_hack")]
+        timestamp: Option<OffsetDateTime>,
     }
 
     #[test]
@@ -229,6 +257,26 @@ mod tests {
             state.deleted_time,
             Some(parse_rfc3339("2022-03-28T11:05:31Z")?)
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_invalid_rfc3339_returns_none() -> crate::Result<()> {
+        let json_state = r#"{
+            "created_time": "0001-01-01T00:00:00",
+            "deleted_time": "0001-01-01T00:00:00"
+        }"#;
+
+        let result = from_json::<_, ExampleState>(json_state);
+        assert!(result.is_err());
+
+        let json_state = r#"{
+            "timestamp": "0001-01-01T00:00:00"
+        }"#;
+
+        let state: ExampleOptionalDateTime = from_json(json_state)?;
+        assert!(state.timestamp.is_none());
 
         Ok(())
     }
