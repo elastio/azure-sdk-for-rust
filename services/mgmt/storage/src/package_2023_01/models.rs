@@ -295,8 +295,8 @@ pub struct ActiveDirectoryProperties {
     #[serde(rename = "forestName", default, skip_serializing_if = "Option::is_none")]
     pub forest_name: Option<String>,
     #[doc = "Specifies the domain GUID."]
-    #[serde(rename = "domainGuid")]
-    pub domain_guid: String,
+    #[serde(rename = "domainGuid", default, skip_serializing_if = "Option::is_none")]
+    pub domain_guid: Option<String>,
     #[doc = "Specifies the security identifier (SID)."]
     #[serde(rename = "domainSid", default, skip_serializing_if = "Option::is_none")]
     pub domain_sid: Option<String>,
@@ -311,12 +311,12 @@ pub struct ActiveDirectoryProperties {
     pub account_type: Option<active_directory_properties::AccountType>,
 }
 impl ActiveDirectoryProperties {
-    pub fn new(domain_name: String, domain_guid: String) -> Self {
+    pub fn new(domain_name: String) -> Self {
         Self {
             domain_name,
             net_bios_domain_name: None,
             forest_name: None,
-            domain_guid,
+            domain_guid: None,
             domain_sid: None,
             azure_storage_sid: None,
             sam_account_name: None,
