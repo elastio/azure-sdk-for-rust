@@ -4,6 +4,7 @@ create_enum!(
     AccessTier,
     (Hot, "Hot"),
     (Cool, "Cool"),
+    (Cold, "Cold"),
     (Archive, "Archive")
 );
 

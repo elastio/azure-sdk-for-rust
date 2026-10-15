@@ -86,6 +86,17 @@ where
         .map_err(serde::de::Error::custom)
 }
 
+/// Parses the access tier, and returns `None` for a tier that [`AccessTier`] does not know, such
+/// as the premium page blob tiers `P4`..`P80`. A failure would fail the whole blob list page.
+fn deserialize_access_tier_optional<'de, D>(deserializer: D) -> Result<Option<AccessTier>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+
+    Ok(s.and_then(|s| s.parse().ok()))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Blob {
@@ -144,6 +155,8 @@ pub struct BlobProperties {
     #[serde(rename = "x-ms-blob-sequence-number")]
     pub blob_sequence_number: Option<u64>,
     pub blob_type: BlobType,
+    /// `None` also for a tier that [`AccessTier`] does not know.
+    #[serde(default, deserialize_with = "deserialize_access_tier_optional")]
     pub access_tier: Option<AccessTier>,
     #[serde(default, with = "azure_core::date::rfc1123::option")]
     pub access_tier_change_time: Option<OffsetDateTime>,
@@ -203,7 +216,10 @@ impl Blob {
         let etag = h.get_as(&headers::ETAG)?;
         let blob_sequence_number = h.get_optional_as(&headers::BLOB_SEQUENCE_NUMBER)?;
         let blob_type = h.get_as(&headers::BLOB_TYPE)?;
-        let access_tier = h.get_optional_as(&headers::BLOB_ACCESS_TIER)?;
+        // An unknown tier is `None`, as in `deserialize_access_tier_optional`.
+        let access_tier = h
+            .get_optional_str(&headers::BLOB_ACCESS_TIER)
+            .and_then(|s| s.parse().ok());
         let content_encoding = h.get_optional_string(&headers::CONTENT_ENCODING);
         let content_language = h.get_optional_string(&headers::CONTENT_LANGUAGE);
         let content_md5 = h.get_optional_as(&headers::CONTENT_MD5)?;

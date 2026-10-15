@@ -337,6 +337,72 @@ mod tests {
     }
 
     #[test]
+    fn deserde_access_tiers() {
+        const XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+        <EnumerationResults ServiceEndpoint=\"https://account.blob.core.windows.net/\" ContainerName=\"temp\">
+            <Blobs>
+                <Blob>
+                    <Name>cold</Name>
+                    <Properties>
+                        <Creation-Time>Mon, 02 Oct 2023 20:00:31 GMT</Creation-Time>
+                        <Last-Modified>Mon, 02 Oct 2023 20:00:31 GMT</Last-Modified>
+                        <Etag>0x23D9DB658CF7480</Etag>
+                        <Content-Length>0</Content-Length>
+                        <Content-Type>application/octet-stream</Content-Type>
+                        <BlobType>BlockBlob</BlobType>
+                        <AccessTier>Cold</AccessTier>
+                        <ServerEncrypted>true</ServerEncrypted>
+                    </Properties>
+                </Blob>
+                <Blob>
+                    <Name>archive</Name>
+                    <Properties>
+                        <Creation-Time>Mon, 02 Oct 2023 20:00:31 GMT</Creation-Time>
+                        <Last-Modified>Mon, 02 Oct 2023 20:00:31 GMT</Last-Modified>
+                        <Etag>0x23D9DB658CF7480</Etag>
+                        <Content-Length>0</Content-Length>
+                        <Content-Type>application/octet-stream</Content-Type>
+                        <BlobType>BlockBlob</BlobType>
+                        <AccessTier>Archive</AccessTier>
+                        <ServerEncrypted>true</ServerEncrypted>
+                    </Properties>
+                </Blob>
+                <Blob>
+                    <Name>premium</Name>
+                    <Properties>
+                        <Creation-Time>Mon, 02 Oct 2023 20:00:31 GMT</Creation-Time>
+                        <Last-Modified>Mon, 02 Oct 2023 20:00:31 GMT</Last-Modified>
+                        <Etag>0x23D9DB658CF7480</Etag>
+                        <Content-Length>0</Content-Length>
+                        <Content-Type>application/octet-stream</Content-Type>
+                        <BlobType>PageBlob</BlobType>
+                        <AccessTier>P10</AccessTier>
+                        <ServerEncrypted>true</ServerEncrypted>
+                    </Properties>
+                </Blob>
+            </Blobs>
+            <NextMarker/>
+        </EnumerationResults>";
+
+        let bytes = Bytes::from(XML);
+        let response: ListBlobsResponseInternal = read_xml(&bytes).unwrap();
+        let tiers: Vec<_> = response
+            .blobs
+            .items
+            .into_iter()
+            .map(|item| match item {
+                BlobItem::Blob(blob) => blob.properties.access_tier,
+                BlobItem::BlobPrefix(_) => panic!("Unexpected blob prefix"),
+            })
+            .collect();
+
+        assert_eq!(
+            tiers,
+            vec![Some(AccessTier::Cold), Some(AccessTier::Archive), None]
+        );
+    }
+
+    #[test]
     fn deserde_properties_with_non_existent_field() {
         const XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
         <EnumerationResults ServiceEndpoint=\"http://127.0.0.1:10000/devstoreaccount1\" ContainerName=\"temp\">
