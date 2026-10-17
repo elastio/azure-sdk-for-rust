@@ -6,6 +6,7 @@ use time::OffsetDateTime;
 operation! {
     GetPageRanges,
     client: BlobClient,
+    ?range: BA512Range,
     ?if_modified_since: IfModifiedSinceCondition,
     ?if_match: IfMatchCondition,
     ?if_tags: IfTags,
@@ -22,6 +23,7 @@ impl GetPageRangesBuilder {
             self.blob_versioning.append_to_url_query(&mut url);
 
             let mut headers = Headers::new();
+            headers.add(self.range);
             headers.add(self.lease_id);
             headers.add(self.if_modified_since);
             headers.add(self.if_match);

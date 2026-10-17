@@ -25023,11 +25023,9 @@ pub mod disks {
             fn into_future(self) -> Self::IntoFuture {
                 Box::pin(async move {
                     use azure_core::{
-                        error::{Error, ErrorKind},
                         lro::{
                             get_retry_after,
-                            location::{get_location, get_provisioning_state, FinalState},
-                            LroStatus,
+                            location::{get_location, FinalState},
                         },
                         sleep::sleep,
                     };
@@ -25037,39 +25035,19 @@ pub mod disks {
                     let headers = response.as_raw_response().headers();
                     let location = get_location(headers, FinalState::Location)?;
                     if let Some(url) = location {
+                        // elastio: the `Location` URL of `grantAccess` answers 202 with no body while
+                        // the operation runs, and 200 with the `AccessUri` when it is done. It has no
+                        // provisioning state, so the generated polling failed on it.
                         loop {
                             let mut req = azure_core::Request::new(url.clone(), azure_core::Method::Get);
                             let bearer_token = self.client.bearer_token().await?;
                             req.insert_header(azure_core::headers::AUTHORIZATION, format!("Bearer {}", bearer_token.secret()));
                             let response = self.client.send(&mut req).await?;
-                            let headers = response.headers();
-                            let retry_after = get_retry_after(headers);
-                            let bytes = response.into_body().collect().await?;
-                            let provisioning_state = get_provisioning_state(&bytes).ok_or_else(|| {
-                                Error::message(
-                                    ErrorKind::Other,
-                                    "Long running operation failed (missing provisioning state)".to_string(),
-                                )
-                            })?;
-                            log::trace!("current provisioning_state: {provisioning_state:?}");
-                            match provisioning_state {
-                                LroStatus::Succeeded => {
-                                    let mut req = azure_core::Request::new(self.url()?, azure_core::Method::Get);
-                                    let bearer_token = self.client.bearer_token().await?;
-                                    req.insert_header(azure_core::headers::AUTHORIZATION, format!("Bearer {}", bearer_token.secret()));
-                                    let response = self.client.send(&mut req).await?;
-                                    return Response(response).into_body().await;
-                                }
-                                LroStatus::Failed => {
-                                    return Err(Error::message(ErrorKind::Other, "Long running operation failed".to_string()))
-                                }
-                                LroStatus::Canceled => {
-                                    return Err(Error::message(ErrorKind::Other, "Long running operation canceled".to_string()))
-                                }
-                                _ => {
-                                    sleep(retry_after).await;
-                                }
+                            if response.status() == azure_core::StatusCode::Accepted {
+                                sleep(get_retry_after(response.headers())).await;
+                                continue;
                             }
+                            return Response(response).into_body().await;
                         }
                     } else {
                         response.into_body().await

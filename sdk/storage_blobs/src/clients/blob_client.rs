@@ -214,6 +214,17 @@ impl BlobClient {
     }
 
     /// Return the list of valid page ranges for a page blob or snapshot of a page blob.
+    /// Writes `ba512_range` of this page blob with `source_range` of the blob at `source_url`.
+    /// The storage service reads the source; no data passes through the client.
+    pub fn put_page_from_url(
+        &self,
+        ba512_range: BA512Range,
+        source_url: Url,
+        source_range: BA512Range,
+    ) -> PutPageFromUrlBuilder {
+        PutPageFromUrlBuilder::new(self.clone(), ba512_range, source_url, source_range)
+    }
+
     pub fn get_page_ranges(&self) -> GetPageRangesBuilder {
         GetPageRangesBuilder::new(self.clone())
     }
