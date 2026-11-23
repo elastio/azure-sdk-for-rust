@@ -1,0 +1,14 @@
+[workspace]
+members = [
+  "mgmt/compute",
+  "mgmt/dataprotection",
+  "mgmt/recoveryservices",
+  "mgmt/recoveryservicesbackup",
+  "mgmt/resources",
+  "mgmt/storage",
+  "mgmt/subscription",
+  "svc/blobstorage",
+  "svc/imds",
+]
+
+resolver = "2"
